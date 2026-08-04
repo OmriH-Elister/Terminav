@@ -1,0 +1,27 @@
+{
+  "name": "terminav",
+  "version": "0.1.0",
+  "description": "Terminal-driven graphical browser controller: curl-like commands backed by Playwright/Chromium.",
+  "type": "module",
+  "bin": {
+    "terminav": "./bin/terminav.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "smoke": "node ./bin/terminav.js screenshot https://example.com -o ./artifacts/example.png && node ./bin/terminav.js extract https://example.com --title --text"
+  },
+  "keywords": [
+    "browser",
+    "cli",
+    "playwright",
+    "chromium",
+    "terminal"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "commander": "^14.0.2",
+    "playwright": "^1.56.1"
+  }
+}
