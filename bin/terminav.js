@@ -77,7 +77,7 @@ async function withPage(opts, fn) {
       viewport: opts.viewport ? parseViewport(opts.viewport) : { width: 1440, height: 1000 },
       ignoreHTTPSErrors: Boolean(opts.ignoreHttpsErrors),
     });
-    let page = await context.newPage();
+    const page = await context.newPage();
     return await fn(page, context, browser);
   } finally {
     await browser.close();
@@ -219,7 +219,7 @@ commonOptions(program.command('shell [url]'))
   .action(async (url = 'about:blank', opts) => {
     const browser = await launchBrowser(opts);
     const context = await browser.newContext({ viewport: opts.viewport ? parseViewport(opts.viewport) : { width: 1440, height: 1000 }, ignoreHTTPSErrors: Boolean(opts.ignoreHttpsErrors) });
-    const page = await context.newPage();
+    let page = await context.newPage();
     if (url !== 'about:blank') await goto(page, url, opts);
     console.log(chalk.green('TermiNav shell'), chalk.gray('type help for commands, quit to exit'));
     console.log(chalk.gray(`current=${page.url()}`));
