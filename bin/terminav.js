@@ -5,6 +5,7 @@ import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 
 function tokenizeLine(line) {
@@ -58,7 +59,7 @@ function wantsHeaded(opts = {}) {
   if (opts.headed) return true;
   if (opts.headless) return false;
   // Default to headless in non-GUI environments, headed otherwise.
-  return Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
+  return process.platform === 'win32' || Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
 }
 
 async function launchBrowser(opts = {}) {
@@ -91,12 +92,24 @@ function parseViewport(value) {
 
 async function goto(page, url, opts = {}) {
   const target = normalizeUrl(url);
-  const response = await page.goto(target, {
-    waitUntil: opts.waitUntil || 'domcontentloaded',
-    timeout: Number(opts.timeout || 45000),
-  });
+  const timeout = Number(opts.timeout || 45000);
+  let response;
+  try {
+    response = await page.goto(target, {
+      waitUntil: opts.waitUntil || 'domcontentloaded',
+      timeout,
+    });
+  } catch (err) {
+    if (!/ERR_ABORTED/.test(err.message) || page.isClosed()) throw err;
+    await page.waitForLoadState('domcontentloaded', { timeout }).catch(() => {});
+  }
   if (opts.networkIdle) await page.waitForLoadState('networkidle', { timeout: Number(opts.timeout || 45000) }).catch(() => {});
   return response;
+}
+
+async function activePage(context) {
+  const livePages = context.pages().filter((candidate) => !candidate.isClosed());
+  return livePages.at(-1) || context.newPage();
 }
 
 async function smartLocator(page, query) {
@@ -108,7 +121,7 @@ async function smartLocator(page, query) {
   }
   if (/^(css=|xpath=|id=|data-testid=)/.test(q)) return page.locator(q).first();
   // CSS-looking selectors use CSS. Otherwise click by visible text.
-  if (/^[#.\[]|[:>~+]|\s|^[a-z]+[.#\[]/i.test(q)) return page.locator(q).first();
+  if (/^[#.\[]|[:>~+]|^[a-z]+[.#\[]/i.test(q)) return page.locator(q).first();
   return page.getByText(q, { exact: false }).first();
 }
 
@@ -206,7 +219,7 @@ commonOptions(program.command('shell [url]'))
   .action(async (url = 'about:blank', opts) => {
     const browser = await launchBrowser(opts);
     const context = await browser.newContext({ viewport: opts.viewport ? parseViewport(opts.viewport) : { width: 1440, height: 1000 }, ignoreHTTPSErrors: Boolean(opts.ignoreHttpsErrors) });
-    const page = await context.newPage();
+    let page = await context.newPage();
     if (url !== 'about:blank') await goto(page, url, opts);
     console.log(chalk.green('TermiNav shell'), chalk.gray('type help for commands, quit to exit'));
     console.log(chalk.gray(`current=${page.url()}`));
@@ -220,6 +233,7 @@ commonOptions(program.command('shell [url]'))
         [cmd, ...args] = parts;
         if (!cmd) { rl.prompt(); continue; }
         if (['quit', 'exit'].includes(cmd)) break;
+        page = await activePage(context);
         if (cmd === 'help') {
           console.log(`Commands:\n  open <url>\n  click <selector|text=Text|role=button:Name>\n  type <selector> <text>\n  press <key>\n  wait <ms>\n  screenshot <file> [--full-page]\n  extract [title|url|text|links|all] [--json]\n  eval <javascript>\n  status\n  quit`);
         } else if (cmd === 'open' || cmd === 'navigate') {
@@ -273,7 +287,11 @@ commonOptions(program.command('shell [url]'))
     await browser.close();
   });
 
-program.parseAsync(process.argv).catch((err) => {
-  console.error(chalk.red(err.stack || err.message));
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  program.parseAsync(process.argv).catch((err) => {
+    console.error(chalk.red(err.stack || err.message));
+    process.exit(1);
+  });
+}
+
+export { activePage, goto, normalizeUrl, smartLocator, tokenizeLine, wantsHeaded };

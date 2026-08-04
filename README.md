@@ -19,6 +19,14 @@ npx playwright install chromium
 npm link   # optional: makes `terminav` available globally for this Node install
 ```
 
+On Ubuntu or WSL, install Chromium's Linux system dependencies as well:
+
+```bash
+sudo npx playwright install-deps chromium
+```
+
+If Chromium exits during launch with a missing `.so` library, this prerequisite has not completed successfully; it is a browser launch failure rather than a navigation failure.
+
 You can also run it directly without linking:
 
 ```bash
