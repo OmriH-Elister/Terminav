@@ -1,0 +1,21 @@
+node_modules/
+
+# Local environment and credential files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Browser profiles and saved authentication state
+.auth/
+playwright/.auth/
+user-data-dir/
+
+# Local logs and generated screenshots
+*.log
+artifacts/*.png
+!artifacts/example.png
+!artifacts/shell-example.png
