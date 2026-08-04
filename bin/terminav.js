@@ -77,7 +77,7 @@ async function withPage(opts, fn) {
       viewport: opts.viewport ? parseViewport(opts.viewport) : { width: 1440, height: 1000 },
       ignoreHTTPSErrors: Boolean(opts.ignoreHttpsErrors),
     });
-    const page = await context.newPage();
+    let page = await context.newPage();
     return await fn(page, context, browser);
   } finally {
     await browser.close();
@@ -92,12 +92,24 @@ function parseViewport(value) {
 
 async function goto(page, url, opts = {}) {
   const target = normalizeUrl(url);
-  const response = await page.goto(target, {
-    waitUntil: opts.waitUntil || 'domcontentloaded',
-    timeout: Number(opts.timeout || 45000),
-  });
+  const timeout = Number(opts.timeout || 45000);
+  let response;
+  try {
+    response = await page.goto(target, {
+      waitUntil: opts.waitUntil || 'domcontentloaded',
+      timeout,
+    });
+  } catch (err) {
+    if (!/ERR_ABORTED/.test(err.message) || page.isClosed()) throw err;
+    await page.waitForLoadState('domcontentloaded', { timeout }).catch(() => {});
+  }
   if (opts.networkIdle) await page.waitForLoadState('networkidle', { timeout: Number(opts.timeout || 45000) }).catch(() => {});
   return response;
+}
+
+async function activePage(context) {
+  const livePages = context.pages().filter((candidate) => !candidate.isClosed());
+  return livePages.at(-1) || context.newPage();
 }
 
 async function smartLocator(page, query) {
@@ -221,6 +233,7 @@ commonOptions(program.command('shell [url]'))
         [cmd, ...args] = parts;
         if (!cmd) { rl.prompt(); continue; }
         if (['quit', 'exit'].includes(cmd)) break;
+        page = await activePage(context);
         if (cmd === 'help') {
           console.log(`Commands:\n  open <url>\n  click <selector|text=Text|role=button:Name>\n  type <selector> <text>\n  press <key>\n  wait <ms>\n  screenshot <file> [--full-page]\n  extract [title|url|text|links|all] [--json]\n  eval <javascript>\n  status\n  quit`);
         } else if (cmd === 'open' || cmd === 'navigate') {
@@ -281,4 +294,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   });
 }
 
-export { normalizeUrl, smartLocator, tokenizeLine, wantsHeaded };
+export { activePage, goto, normalizeUrl, smartLocator, tokenizeLine, wantsHeaded };
