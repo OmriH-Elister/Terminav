@@ -27,6 +27,16 @@ sudo npx playwright install-deps chromium
 
 If Chromium exits during launch with a missing `.so` library, this prerequisite has not completed successfully; it is a browser launch failure rather than a navigation failure.
 
+### WSL with native Windows Chrome
+
+When running TermiNav inside WSL, you can launch the installed Windows Chrome and control it over the Chrome DevTools Protocol. This keeps rendering on the Windows desktop and avoids relying on a Linux Chromium display surface:
+
+```bash
+terminav shell https://example.com --wsl-chrome
+```
+
+Use `shell --wsl-chrome` only from WSL. It expects Google Chrome at the standard Windows installation path and creates an isolated temporary Chrome profile under `C:\\temp`.
+
 You can also run it directly without linking:
 
 ```bash

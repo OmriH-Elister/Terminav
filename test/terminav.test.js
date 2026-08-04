@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { activePage, goto, normalizeUrl, smartLocator, tokenizeLine } from '../bin/terminav.js';
+import { activePage, goto, normalizeUrl, smartLocator, tokenizeLine, wantsHeaded } from '../bin/terminav.js';
 
 test('tokenizeLine preserves quoted arguments', () => {
   assert.deepEqual(tokenizeLine('click "Learn more"'), ['click', 'Learn more']);
@@ -12,6 +12,10 @@ test('normalizeUrl adds HTTPS only when a scheme is absent', () => {
   assert.equal(normalizeUrl('example.com'), 'https://example.com');
   assert.equal(normalizeUrl('file:///tmp/page.html'), 'file:///tmp/page.html');
   assert.equal(normalizeUrl('about:blank'), 'about:blank');
+});
+
+test('WSL Chrome mode requests a visible browser', () => {
+  assert.equal(wantsHeaded({ wslChrome: true }), true);
 });
 
 test('smartLocator treats multi-word input as visible text', async () => {
