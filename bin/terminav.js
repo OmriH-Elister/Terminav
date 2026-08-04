@@ -6,6 +6,7 @@ import { stdin as input, stdout as output } from 'node:process';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
 
 function tokenizeLine(line) {
@@ -59,11 +60,54 @@ function wantsHeaded(opts = {}) {
   if (opts.headed) return true;
   if (opts.headless) return false;
   // Default to headless in non-GUI environments, headed otherwise.
-  return process.platform === 'win32' || Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
+  return process.platform === 'win32' || Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY) || Boolean(opts.wslChrome);
 }
 
 async function launchBrowser(opts = {}) {
   const headed = wantsHeaded(opts);
+
+  if (opts.wslChrome) {
+    const port = 9222 + Math.floor(Math.random() * 1000);
+    const chromeExe = '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe';
+    const userDataDir = `C:\\temp\\terminav_chrome_data_${port}`;
+    const args = [
+      `--remote-debugging-port=${port}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+      `--user-data-dir=${userDataDir}`,
+    ];
+
+    if (!headed) args.push('--headless');
+
+    console.log(chalk.gray(`[WSL Bridge] Spawning native Windows Chrome (port ${port})...`));
+    const child = spawn(chromeExe, args, { stdio: 'ignore', detached: true });
+    child.unref();
+
+    let browser;
+    for (let attempt = 0; attempt < 15; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      try {
+        browser = await chromium.connectOverCDP(`http://localhost:${port}`);
+        break;
+      } catch {
+        // Windows Chrome may need a few seconds to expose its CDP endpoint.
+      }
+    }
+
+    if (!browser) {
+      try { child.kill('SIGKILL'); } catch {}
+      throw new Error('WSL bridge failed: could not connect to Windows Chrome over CDP.');
+    }
+
+    const originalClose = browser.close.bind(browser);
+    browser.close = async () => {
+      try { await originalClose(); } catch {}
+      try { child.kill(); } catch {}
+    };
+
+    return browser;
+  }
+
   return chromium.launch({
     headless: !headed,
     slowMo: Number(opts.slowMo || 0),
@@ -151,6 +195,7 @@ function commonOptions(cmd) {
   return cmd
     .option('--headed', 'open a visible Chromium window')
     .option('--headless', 'force headless Chromium')
+    .option('--wsl-chrome', 'launch native Windows Chrome from WSL and connect over CDP')
     .option('--slow-mo <ms>', 'slow browser actions for demos/debugging', '0')
     .option('--timeout <ms>', 'navigation timeout in milliseconds', '45000')
     .option('--viewport <size>', 'browser viewport, e.g. 1440x1000')
